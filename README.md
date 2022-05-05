@@ -10,16 +10,17 @@ feature-tagged exampleを入力としてCPSソルバーsugar用のインプッ�
 ```
 (word type+ ;)+
 ```
-## example(input.txt)
+### 入力例(input.txt)
 ```
 he pi_3;loves s_1 pi_3 n;small n n;cats n 
 ```
-## 
+## 動作
 ``` 
 cargo run --bin bft-pg input.txt > hoge.cps
+sugar hoge.cps
 ```
 
-## 出力例
+## 出力例(hoge.cps)
 
 ```
 (int x_he_0_0 1 1)
@@ -48,7 +49,6 @@ cargo run --bin bft-pg input.txt > hoge.cps
 (= (+ u_loves_1_2 1) u_small_2_0)
 (= (+ u_small_2_1 1) u_cats_3_0)
 ```
-
 sugar に投げると
 ```
 s SATISFIABLE
