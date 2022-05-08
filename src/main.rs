@@ -1,96 +1,144 @@
+use std::io;
 use std::env;
 use std::fs::File;
-use std::io::prelude::*;
+use std::io::{BufRead, BufReader};
+use std::collections::HashSet;
+use std::collections::HashMap;
 
-struct TaggedWord{
-    word: String,
-    pos: usize,
-    types: Vec<(usize,String)>
-}
-
-type Sentence = Vec<TaggedWord>;
-
-fn name(st: &str) -> &str{
-    st.split_ascii_whitespace().next().unwrap().trim()
-}
-
-
-fn main() {
-    let args:Vec<String> = env::args().collect();
-    let filename = &args[1];
-
-    let mut f = File::open(filename).expect("file not found");
-
-    let mut contents = String::new();
-    f.read_to_string(&mut contents)
-        .expect("something went wrong when reading the file");
-    
-    let contents:Vec<&str> = contents.split(';').collect();
-    let mut pnum = contents.iter().fold(0, |sum, s| sum + s.trim().split_ascii_whitespace().count() -1);
-    eprintln!("sum of types:{}", pnum);
-    assert_eq!(1, pnum%2);
-    
-
-    let mut ty_arr: Sentence = Vec::new(); //usize: original position in the sentence
-
-    //constraints in step 0
-    for (i,s) in contents.iter().enumerate(){
-        let n = s.split_ascii_whitespace().skip(1).count();
-        ty_arr.push(TaggedWord {word:name(s).to_string(), pos:i,types:Vec::new()});
-        let word = name(s);
-        for (j,typ) in s.split_ascii_whitespace().skip(1).enumerate(){
-            println!("(int x_{}_{}_{} 1 {})", word,i,j, n);
-            println!("(int u_{}_{}_{} -3 3)", word,i,j);
-            ty_arr[i].types.push((j,typ.to_string()));
+fn init_vars(filename:&str)  -> Result<HashMap<String,usize>, io::Error>{
+    let mut typenum = HashMap::new();
+    let f = File::open(filename)?;
+    let reader = BufReader::new(f);
+    for line in reader.lines(){
+        let line = line?;
+        for iter in line.split(';'){
+            let word = iter.split_ascii_whitespace().next().unwrap();
+            let num:usize = iter.split_ascii_whitespace().nth(1).unwrap().parse().unwrap();
+            typenum.insert(word.to_string(),num);
         }
     }
-    for v in ty_arr.iter(){
-        for (j,s) in v.types.iter().enumerate() {
-            if let Some(pos) = v.types.iter().skip(j+1).position(|t| s.1==t.1) {
-                println!("(< x_{}_{}_{} x_{}_{}_{})", v.word ,v.pos,j,v.word, v.pos,pos+j+1); //なんかもっとキレイな書き方あるでしょ
-            }
+    Ok(typenum)
+}
+
+fn write_vars(typenum: &HashMap<String,usize>){
+    for (s,n) in typenum.iter() {
+        for i in 0..*n{
+            println!("(int x_{}_{} 0 10)", s,i);
+            println!("(int u_{}_{} -3 3)", s,i);
         }
     }
-    println!("(int cost 0 1000)");
-    print!("(= cost (+ ");
-    for TaggedWord{word,pos,types:v} in ty_arr.iter(){
-        for (j,_) in v.iter() {
-            print!("(abs u_{}_{}_{}) ", word,pos,j);
+    println!("(int xcost 0 10)");
+    print!("(nvalue xcost (");
+    for (s,n) in typenum.iter() {
+        for i in 0..*n{
+            print!("x_{}_{} ", s,i);
         }
     }
     println!("))");
-    println!("(objective minimize cost)");
-    // external
-    while pnum!=1 {
-        let mut rmv_ind = None;
-        for TaggedWord { types:v,..} in ty_arr.iter() {
-            eprintln!("{:?}", v);
+
+    println!("(int ucost 0 30)");
+    print!("(= ucost (+ ");
+    for (s,n) in typenum.iter() {
+        for i in 0..*n{
+            print!("(abs u_{}_{}) ", s,i);
         }
-        'outer: for TaggedWord{word:word1,pos:n,types:v} in ty_arr.iter().take(ty_arr.len()-1) {
-            let TaggedWord{word:word2,pos:m, types:w} = &ty_arr[n+1];
-            for (ipos,(i0,t1))in v.iter().enumerate().rev() {
-                if let Some(jpos) = w.iter().position(|(_,t2)| t1 == t2) {
-                    let (j0,_) = &w[jpos];
-                    eprintln!("found pair! {} {} {} {}", n,i0, m, j0);
-                    rmv_ind = Some((*n,ipos,*m,jpos));
-                    for (i,_) in v {if i!=i0 {println!("(< x_{}_{}_{} x_{}_{}_{})", word1, n,i,word1, n,i0);}}
-                    for (j,_) in w {if j!=j0 {println!("(< x_{}_{}_{} x_{}_{}_{})", word2, m,j0, word2,m,j)}}
-                    println!("(= (+ u_{}_{}_{} 1) u_{}_{}_{})", word1, n,i0,word2, m,j0);
-                    pnum -= 2;
-                    break 'outer;
+    }
+    println!("))");
+
+    println!("(int cost 0 20)");
+    println!("(= cost (+ xcost ucost))");
+    println!("(objective minimize cost)");
+
+
+}
+
+fn main() -> io::Result<()>{
+    let args:Vec<String> = env::args().collect();
+    let filename = &args[1];
+
+    let typenum = init_vars(filename).unwrap();
+
+
+    write_vars(&typenum);
+
+    eprintln!("{:?}", typenum);
+
+    let f = File::open(filename)?;
+    let reader = BufReader::new(f);
+    for (ith,line) in reader.lines().enumerate(){
+        let line = line.unwrap();
+        let contents:Vec<&str> = line.split(';').collect();
+        let pnum:usize = contents.iter().fold(0, |sum, s| sum + (s.trim().split_ascii_whitespace().nth(1).unwrap().parse() as Result<usize,_>).unwrap());//どう書けばいいの？
+        println!();
+        println!("; {}th sentences", ith);
+        eprintln!("sum of types:{}", pnum);
+        assert_eq!(1, pnum%2, "{}th sentence:the sum of primitive types should be odd", ith);
+    
+        let mut vars: Vec<String> = Vec::new();
+        let mut inner = HashSet::new();
+        for s in contents{
+            let mut iter = s.split_ascii_whitespace();
+            let word = iter.next().unwrap();
+            let num  = iter.next().unwrap().parse().unwrap();
+            let n = vars.len();
+            for i in 0..num {
+                vars.push(format!("{}_{}", word, i));
+            }
+            for i in 0..num{
+                for j in (i+1..num).step_by(2){
+                    inner.insert((n+i, n+j));
                 }
             }
         }
-        match rmv_ind {
-            Some((rn,ri0,rm,rj0)) => {
-                ty_arr[rn].types.remove(ri0);
-                ty_arr[rm].types.remove(rj0);
-            },
-            None => {
-                eprintln!("cannot finish external contraction");
-                std::process::exit(1);
+
+
+
+        print!("(count 0 (");
+        for s in &vars{
+            print!("x_{} ", s);
+        }
+        println!(") eq 1)");
+
+        //println!("(objective minimize ucost)");
+        //println!("(objective minimize xcost)");
+
+        eprintln!("{:?}", vars);
+        for i  in 0..pnum {
+            for j in (i+1..pnum).step_by(2) {
+                println!("(predicate (cont_{}_{}_{}) (and (= x_{} x_{}) (= (+ u_{} 1) u_{})))",ith,i,j, vars[i], vars[j], vars[i], vars[j]);
             }
         }
+
+        for (i,j) in inner{
+            println!("(! (cont_{}_{}_{})) ", ith,i,j);
+        }
+        for diff in (1..pnum+2).step_by(2) {
+            for i in 0..pnum-diff {
+                print!("(predicate (comp_{}_{}_{}) (or ", ith,i,i+diff);
+                for j in (i+1..i+diff+1).step_by(2){
+                    print!("(and (cont_{}_{}_{}) ",ith, i,j);
+                    if i +1 != j{
+                        print!("(comp_{}_{}_{}) ", ith,i+1, j-1);
+                    }
+                    if j!=i+diff {
+                        print!("(comp_{}_{}_{}) ", ith,j+1,i+diff);
+                    }
+                    print!(")");
+                }
+                println!("))");
+            }
+        }
+        print!("(or ");
+        for spos in (0..pnum).step_by(2){
+            print!("(and ");
+            print!("(= x_{} 0) ", vars[spos]);
+            if spos != 0{print!("(comp_{}_0_{}) ", ith,spos-1)}
+            if spos != pnum-1{print!("(comp_{}_{}_{})", ith,spos+1, pnum-1)}
+            print!(")");
+        }
+        println!(")");
     }
 
+
+    Ok(())
 }
