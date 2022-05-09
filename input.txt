@@ -1,2 +1,2 @@
-Bob 1; likes 3; Alice 1
-Alice 1; likes 3; Bob 1
+she 1; will 3; come 1
+she 1; will 3; see 2; him 1
