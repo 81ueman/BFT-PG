@@ -102,6 +102,7 @@ a x_saw_0       0
 というように帰ってくるのでこれを元に文法を復元する。
 
 復元語は標準出力に入力文とその対応する文法を出力する。markdownで読めそうな感じにして合る。
+
 ```the man slept ```
 
 ![pic of themanslept](img/themanslept.png)
