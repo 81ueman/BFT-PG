@@ -145,14 +145,10 @@ fn main() -> io::Result<()>{
     let filename = &args[1];
 
     let (words_dic,sentences) = read_file(filename).unwrap();
-    println!(";{:?}", words_dic);
-    println!(";{:?}", sentences);
     let words_num = words_dic.len();
-    println!(";{} kinds of words", words_num);
-    println!();
 
     let mut pat = 0;
-    for sum in 0..2{
+    for sum in 0..4{
         'outer: for perm in (0..words_num).combinations_with_replacement(sum){
             //ewrite_file(format!("{:?}", perm);
             let mut typenum = HashMap::new();
@@ -172,6 +168,7 @@ fn main() -> io::Result<()>{
             infer(&typenum, &sentences, &mut f);
             f.flush()?;
             f.into_inner().unwrap().sync_all()?;
+
             let child = Command::new("sugar")
             .args(&["tmp.cps"])
             .output()
@@ -179,23 +176,54 @@ fn main() -> io::Result<()>{
             let stdout = child.stdout;
             let result = String::from_utf8(stdout).unwrap();
             let satisfiable = result.split_terminator('\n').next().unwrap().split_ascii_whitespace().nth(1).unwrap() == "SATISFIABLE";
-            println!("{}\n", satisfiable);
+            eprintln!("{}", satisfiable);
             if satisfiable{
+                let mut x_type:HashMap<String, Vec<i32>> = HashMap::new();
+                let mut u_type:HashMap<String, Vec<i32>> = HashMap::new();
+                for (word,num) in typenum.iter() {
+                    let mut x_tmp_v = vec![0;*num];
+                    let mut u_tmp_v = vec![0;*num];
+                    x_type.insert(word.to_string(), x_tmp_v);
+                    u_type.insert(word.to_string(), u_tmp_v);
+                }
+
                 let iter = result.split_terminator('\n').rev().take_while(|s| s.chars().nth(0).unwrap() != 'o').skip(5);
                 for s in iter {
-                    println!("{}", s);
+                    let var = s.split_ascii_whitespace().nth(1).unwrap();
+                    let isx = var.split('_').nth(0).unwrap() == "x";
+                    let word = var.split('_').nth(1).unwrap();
+                    let pos:usize = var.split('_').nth(2).unwrap().parse().unwrap();
+                    let num:i32= s.split_ascii_whitespace().nth(2).unwrap().parse().unwrap();
+                    //println!("u:{} word:{} pos:{} num:{}", isx, word, pos, num);
+                    if isx{
+                        x_type.get_mut(word).unwrap()[pos] = num;
+                    } else {
+                        u_type.get_mut(word).unwrap()[pos] = num;
+                    }
                 }
-                break;
+                for sent in sentences.iter(){
+                    sent.iter().for_each(|s| print!("{} ", s));
+                    println!();
+                    print!("$");
+                    for word in sent.iter(){
+                        for (x,u) in x_type.get(word).unwrap().iter().zip(u_type.get(word).unwrap().iter()) {
+                            print!("{}",if *x == 0 {'s'} else {('a' as u8 + *x as u8) as char});
+                            
+                            if *u > 0{
+                                print!("^{{{}}}","r".repeat(*u as usize) );
+                            } else if *u<0 {
+                                print!("^{{{}}}","l".repeat(-*u as usize) );
+                            }
+                        }
+                    }
+                    println!("$");
+                }
+
+                return Ok(());
             }
         }
-
-        
-        /*let reader = BufReader::new(stdout);
-        for line in reader.lines(){
-            println!("{}", line?);
-        }*/
     }
-
+    eprintln!("failed to satisfi constraints!");
 
     Ok(())
 }
