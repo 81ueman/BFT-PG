@@ -111,7 +111,6 @@ a x_saw_0       0
 
 ![pic of themansawtheman](img/themansawtheman.png)
 
-$gg^{r}sgg^{r}$
 
 といった要領。
 
