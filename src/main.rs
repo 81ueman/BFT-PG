@@ -148,7 +148,7 @@ fn main() -> io::Result<()>{
     let words_num = words_dic.len();
 
     let mut pat = 0;
-    for sum in 0..4{
+    for sum in 0..7{
         'outer: for perm in (0..words_num).combinations_with_replacement(sum){
             //ewrite_file(format!("{:?}", perm);
             let mut typenum = HashMap::new();
